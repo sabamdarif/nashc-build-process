@@ -224,12 +224,18 @@ git clone https://github.com/nashc-dev/android_kernel_realme_nashc.git -b lineag
   ```bash
 git clone --depth=1 https://github.com/nashc-dev/android_vendor_realme_nashc.git -b lineage-21 vendor/realme/nashc
   ```
+OR,
+
+  ```bash
+git clone --depth=1 https://github.com/realme-nashc/android_vendor_realme_nashc.git -b lineage-21 vendor/realme/nashc
+  ```
+
 <b>
   5. Device Tree
 </b>
 
   ```bash
-git clone --depth=1 https://github.com/sabamdarif/android_device_realme_nashc.git -b ROM-NAME device/realme/nashc
+git clone --depth=1 https://github.com/realme-nashc/android_device_realme_nashc -b ROM-NAME (lineage-21) device/realme/nashc
   ```
 ---
 ### Hardware Components Setup
@@ -269,6 +275,11 @@ git clone https://github.com/nashc-dev/android_device_mediatek_sepolicy_vndr.git
 or
 
   ```bash
+git clone https://github.com/realme-nashc/android_device_mediatek_sepolicy_vndr.git -b lineage-21 device/mediatek/sepolicy_vndr
+  ```
+or
+
+  ```bash
 git clone https://github.com/LineageOS/android_device_mediatek_sepolicy_vndr.git -b lineage-21 device/mediatek/sepolicy_vndr
   ```
 
@@ -293,6 +304,16 @@ git clone https://github.com/nashc-dev/patches.git -b lineage-21
   ```bash
 git clone https://github.com/Killerpac/packages_apps_OPlusExtras.git
   ```
+
+<b>
+  7. ImsService
+</b>
+
+  ```bash
+git clone https://github.com/realme-nashc/ImsService.git
+  ```
+
+
 ___
 
 ### ROM Configuration
