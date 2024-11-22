@@ -235,7 +235,15 @@ git clone --depth=1 https://github.com/realme-nashc/android_vendor_realme_nashc.
 </b>
 
   ```bash
-git clone --depth=1 https://github.com/realme-nashc/android_device_realme_nashc -b ROM-NAME (lineage-21) device/realme/nashc
+git clone --depth=1 https://github.com/sabamdarif/android_device_realme_nashc.git -b ROM-NAME (lineage-21) device/realme/nashc
+  ```
+
+<b>
+  6. android_frameworks_base
+</b>
+
+  ```bash
+git clone --depth=1 https://github.com/sabamdarif/android_frameworks_base.git -b lineage-21.0 frameworks/base
   ```
 ---
 ### Hardware Components Setup
