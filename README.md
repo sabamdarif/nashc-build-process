@@ -3,6 +3,12 @@
 This guide walks you through setting up the environment, cloning necessary repositories, configuring device-specific settings, and building Voltage OS for Android 14. Each command is ready to copy-paste for smooth execution.
 
 ### Environment Setup
+</b>
+
+  ```bash
+mkdir voltage && cd voltage
+  ```
+
 <b>
   1. Install Repo Tool
 </b>
@@ -494,4 +500,105 @@ Add the following configurations in the specified XML files:
   ```bash
   ```
 
+## Kernelsu Build Process
 
+<b>
+  1. Clone Repositories
+</b>
+
+  ```bash
+git clone https://github.com/nashc-dev/android_kernel_realme_nashc.git -b lineage-21
+  ```
+
+  ```bash
+cd android_kernel_realme_nashc
+  ```
+<b>
+  2. Clone Clang
+</b>
+
+  ```bash
+git clone --depth=1 https://gitlab.com/Jprimero15/lolz_clang.git -b main
+  ```
+<b>
+  3. Add Kernelsu Next
+</b>
+
+  ```bash
+wget https://raw.githubusercontent.com/MrErenK/Scripts/refs/heads/main/kernel/KSU.patch
+  ```
+
+  ```bash
+patch -p1 < KSU.patch
+  ```
+
+  ```bash
+curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+  ```
+
+<b>
+  4. Add some prop in debconfig
+</b>
+
+- Keep in mind that on some devices, your defconfig may be in `arch/arm64/configs/your_defconfig` or in other cases `arch/arm64/configs/vendor/your_defconfig`
+- see if you have this below props or not (if not add them)
+
+```bash
+CONFIG_KPROBES=y
+CONFIG_HAVE_KPROBES=y
+CONFIG_KPROBE_EVENTS=y
+# KernelSU
+CONFIG_KSU=y
+  ```
+
+<b>
+  5. generate the config
+</b>
+
+  ```bash
+make O=out ARCH=arm64 begonia_user_defconfig #depend on your device
+  ```
+
+<b>
+  6. build
+</b>
+
+```bash
+ARCH=arm64 \                                
+CROSS_COMPILE="${PWD}/lolz_clang/bin/aarch64-linux-gnu-" \
+CROSS_COMPILE_COMPAT="${PWD}/lolz_clang/bin/arm-linux-gnueabi" \
+CROSS_COMPILE_ARM32="${PWD}/lolz_clang/bin/arm-linux-gnueabi-" \
+CLANG_TRIPLE=aarch64-linux-gnu- \
+make -j$(nproc --all) LLVM=1 LLVM_IAS=1 LD=ld.lld AR=llvm-ar NM=llvm-nm AS=llvm-as OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip O=out
+```
+- might depend on the clang you use
+- also run it inside main kernel folder like here it is `android_kernel_realme_nashc`
+
+<b>
+  5. Clone anykernel and zip it
+</b>
+
+  ```bash
+git clone https://github.com/Neebe3289/AnyKernel3 -b begonia
+  ```
+
+```bash
+cd AnyKernel3
+```
+
+```bash
+nano anykernel.sh
+```
+- properties() { ' line add
+
+```bash
+kernel.string=Astera v4.14.336 lolz-KSU-Next by sabamdarif<https://github.com/sabamdarif> for Redmi Note 8 Pro (begonia) | KernelSU Version: 12017
+```
+
+```bash
+cp /home/username/android_kernel_realme_nashc/out/arch/arm64/boot/Image.gz .
+```
+
+```bash
+zip -r9 ksunext-1.0.3.zip *
+```
