@@ -500,7 +500,32 @@ Add the following configurations in the specified XML files:
   ```bash
   ```
 
+```bash
+sudo add-apt-repository universe
+sudo add-apt-repository multiverse
+sudo apt update
+```
+
 ## Kernelsu Build Process
+
+```bash
+sudo apt install -y python3-pip jq libarchive-tools zip lib32z-dev libghc-bzlib-dev pngcrush \
+      liblzma-dev python-is-python3 libsdl1.2-dev autoconf libxml2-utils wget pkg-config unzip \
+      w3m gawk imagemagick libc6-dev gcc-multilib patchelf gzip clang subversion optipng \
+      device-tree-compiler ccache gcc liblz4-dev lzip rsync automake fastboot patch zip pngquant \
+      expat lzop libswitch-perl make libcap-dev adb libxml2 bison libxml-simple-perl zlib1g-dev \
+      libarchive-tools libtool squashfs-tools gperf libfl-dev ncurses-dev pwgen flex \
+      libtinfo6 libmpfr-dev libssl-dev lib32z1-dev libgmp-dev git dpkg-dev libmpc-dev \
+      lftp python3 rar git-lfs policycoreutils unrar ncftp tree python3-all-dev bzip2 bc \
+      software-properties-common tar libgl1-mesa-dev texinfo schedtool curl libexpat1-dev llvm \
+      libc6-dev-i386 apt-utils cmake g++-multilib build-essential re2c axel maven xsltproc g++ \
+      libx11-dev libxml-sax-base-perl gnupg bash
+
+
+sudo apt install -y python3-pip jq libarchive-tools zip libghc-bzlib-dev pngcrush ^liblzma.* python-is-python3 libsdl1.2-dev autoconf libxml2-utils wget pkg-config unzip w3m gawk imagemagick libc6-dev gcc-multilib patchelf gzip clang subversion optipng device-tree-compiler ccache gcc ^liblz4-.* lzip rsync automake fastboot patch zip pngquant expat lzop libswitch-perl make libcap-dev adb libxml2 bison libxml-simple-perl zlib1g-dev libtool squashfs-tools gperf ^lzma.* libfl-dev ncurses-dev pwgen flex libtinfo-dev minicom liblz4-tool libmpfr-dev libssl-dev libbz2-dev libgmp-dev git dpkg-dev libmpc-dev lftp python3 rar git-lfs policycoreutils unrar bc ftp software-properties-common tar libgl1-mesa-dev texinfo schedtool curl libexpat1-dev llvm libc6-dev-i386 apt-utils cmake g++-multilib build-essential re2c axel maven xsltproc g++ libx11-dev libxml-sax-base-perl gnupg bash
+
+
+```
 
 <b>
   1. Clone Repositories
