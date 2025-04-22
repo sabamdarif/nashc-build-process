@@ -589,12 +589,15 @@ make O=out ARCH=arm64 begonia_user_defconfig #depend on your device
 </b>
 
 ```bash
-ARCH=arm64 \                                
+ARCH=arm64 \
 CROSS_COMPILE="${PWD}/lolz_clang/bin/aarch64-linux-gnu-" \
 CROSS_COMPILE_COMPAT="${PWD}/lolz_clang/bin/arm-linux-gnueabi" \
 CROSS_COMPILE_ARM32="${PWD}/lolz_clang/bin/arm-linux-gnueabi-" \
 CLANG_TRIPLE=aarch64-linux-gnu- \
-make -j$(nproc --all) LLVM=1 LLVM_IAS=1 LD=ld.lld AR=llvm-ar NM=llvm-nm AS=llvm-as OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip O=out
+make -j$(nproc --all) LLVM=1 LLVM_IAS=1 \
+     LD=ld.lld AR=llvm-ar NM=llvm-nm AS=llvm-as \
+     OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump \
+     STRIP=llvm-strip O=out
 ```
 - might depend on the clang you use
 - also run it inside main kernel folder like here it is `android_kernel_realme_nashc`

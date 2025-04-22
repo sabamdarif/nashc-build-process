@@ -1,0 +1,27 @@
+From fb79a20508f58dca9e73120be7185f92d0d5ef29 Mon Sep 17 00:00:00 2001
+From: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Date: Thu, 21 Nov 2024 01:59:51 +0800
+Subject: [PATCH] /proc/pid/maps: dont allow paths with lineage to be listed
+
+Signed-off-by: TogoFire <togofire@mailfence.com>
+Change-Id: Ib989ec2f8ddb1c4295953d0bf3057f9164f1de0c
+---
+ fs/proc/task_mmu.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index 8ce9aac4b9437..91c5ff7723d31 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -525,6 +525,11 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+ bypass_orig_flow:
+ #endif
+ 		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
++        struct dentry *dentry = file->f_path.dentry;
++        if (dentry) {
++        	const char *path = (const char *)dentry->d_name.name; 
++            	if (strstr(path, "lineage")) { return; }
++            	}
+ 	}
+ 
+ 	start = vma->vm_start;

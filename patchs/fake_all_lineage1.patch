@@ -1,0 +1,38 @@
+From 0df2b780057cc379bc8ac53195041bb8be2346d2 Mon Sep 17 00:00:00 2001
+From: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Date: Thu, 21 Nov 2024 10:20:00 +0800
+Subject: [PATCH] /proc/pid/map_files: fake all lineage symlinks
+
+Signed-off-by: TogoFire <togofire@mailfence.com>
+Change-Id: Ied2fd0e77daf39785b9041f40ff88b126b3994c6
+---
+ fs/proc/base.c | 16 +++++++++++-----
+ 1 file changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/fs/proc/base.c b/fs/proc/base.c
+index 46fbe770b674..6c0b93b985d1 100644
+--- a/fs/proc/base.c
++++ b/fs/proc/base.c
+@@ -2190,11 +2190,17 @@ static int map_files_get_link(struct dentry *dentry, struct path *path)
+ 
+ 	rc = -ENOENT;
+ 	vma = find_exact_vma(mm, vm_start, vm_end);
+-	if (vma && vma->vm_file) {
+-		*path = vma->vm_file->f_path;
+-		path_get(path);
+-		rc = 0;
+-	}
++ 	if (vma) {
++        	if (vma->vm_file) {
++            		if (strstr(vma->vm_file->f_path.dentry->d_name.name, "lineage")) { 
++            		rc = kern_path("/system/framework/framework-res.apk", LOOKUP_FOLLOW, path);
++        	} else {
++			*path = vma->vm_file->f_path;
++			path_get(path);
++                	rc = 0;
++            		}
++        	}
++    	}
+ 	up_read(&mm->mmap_sem);
+ 
+ out_mmput:
