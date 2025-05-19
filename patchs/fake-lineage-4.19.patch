@@ -1,0 +1,50 @@
+diff --git a/fs/proc/base.c b/fs/proc/base.c
+index a28a345a61bc..2699e834b94e 100644
+--- a/fs/proc/base.c
++++ b/fs/proc/base.c
+@@ -2035,11 +2035,18 @@ static int map_files_get_link(struct dentry *dentry, struct path *path)
+ 
+ 	rc = -ENOENT;
+ 	vma = find_exact_vma(mm, vm_start, vm_end);
+-	if (vma && vma->vm_file) {
+-		*path = vma->vm_file->f_path;
+-		path_get(path);
+-		rc = 0;
+-	}
++ 	if (vma) {
++        	if (vma->vm_file) {
++            		if (strstr(vma->vm_file->f_path.dentry->d_name.name, "lineage")) { 
++            		rc = kern_path("/dev/ashmem (deleted)", LOOKUP_FOLLOW, path);
++        	} else {
++			*path = vma->vm_file->f_path;
++			path_get(path);
++                	rc = 0;
++            		}
++        	}
++    	}
++
+ 	up_read(&mm->mmap_sem);
+ 
+ out_mmput:
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index ab397e7d2d4e..eb3c9590b0dd 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -380,6 +380,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+ bypass_orig_flow:
+ #endif
+ 		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
++         struct dentry *dentry = file->f_path.dentry;
++         if (dentry) {
++         	const char *path = (const char *)dentry->d_name.name; 
++            	if (strstr(path, "lineage")) { 
++	  	start = vma->vm_start;
++		end = vma->vm_end;
++		show_vma_header_prefix(m, start, end, flags, pgoff, dev, ino);
++            	name = "/dev/ashmem (deleted)";
++		goto done;
++            	 	}
++             	}
+ 	}
+ 
+ 	start = vma->vm_start;

@@ -1,0 +1,179 @@
+From 2eee8acb1e84ead01d0046c533ab8bdc08766345 Mon Sep 17 00:00:00 2001
+From: alternoegraha <noegrahachan@gmail.com>
+Date: Mon, 24 Feb 2025 00:38:58 +0000
+Subject: [PATCH] KernelSU: integrate scope-minimized manual hooks
+
+This refactors original KSU hooks to replace deep kernel function hooks with targeted hooks.
+This backports KernelSU pr#1657 and having pr#2084 elements (32-bit sucompat).
+It reduces the scope of kernel function interception and still maintains full fucntionality.
+
+This commit is a squash of the following:
+	drivers/input: input_handle_event: ksu_handle_input_handle_event hook (safemode)
+	devpts: devpts_get_priv: ksu_handle_devpts hook
+*	fs/exec: do_execve: ksu_handle_execveat hook
+*	fs/exec: compat_do_execve: ksu_handle_execveat_sucompat hook
+	fs/open: sys_faccessat: ksu_handle_faccessat hook
+*	fs/read_write: sys_read: ksu_handle_sys_read hook
+*	fs/stat: sys_newfstatat: ksu_handle_stat hook
+*	fs/stat: sys_fstatat64: ksu_handle_stat hook
+
+references: KernelSU pr#1657, pr#2084
+	https://kernelsu.org/guide/how-to-integrate-for-non-gki.html
+
+https://github.com/backslashxx/KernelSU/issues/5
+
+Co-authored-by: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Signed-off-by: alternoegraha <noegrahachan@gmail.com>
+---
+ drivers/input/input.c |  9 +++++++++
+ fs/exec.c             | 18 ++++++++++++++++++
+ fs/open.c             |  8 ++++++++
+ fs/read_write.c       | 10 ++++++++++
+ fs/stat.c             | 10 ++++++++++
+ 5 files changed, 55 insertions(+)
+
+diff --git a/drivers/input/input.c b/drivers/input/input.c
+index 70ffffea3e58..2d0ad35d18fa 100644
+--- a/drivers/input/input.c
++++ b/drivers/input/input.c
+@@ -378,10 +378,19 @@ static int input_get_disposition(struct input_dev *dev,
+ 	return disposition;
+ }
+ 
++#ifdef CONFIG_KSU
++extern bool ksu_input_hook __read_mostly;
++extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
++#endif
++
+ static void input_handle_event(struct input_dev *dev,
+ 			       unsigned int type, unsigned int code, int value)
+ {
+ 	int disposition = input_get_disposition(dev, type, code, &value);
++#ifdef CONFIG_KSU
++	if (unlikely(ksu_input_hook))
++		ksu_handle_input_handle_event(&type, &code, &value);
++#endif
+ 
+ 	if (disposition != INPUT_IGNORE_EVENT && type != EV_SYN)
+ 		add_input_randomness(type, code, value);
+diff --git a/fs/exec.c b/fs/exec.c
+index 9256bd1e8594..2ac7b12329fa 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1906,12 +1906,26 @@ int do_execve_file(struct file *file, void *__argv, void *__envp)
+ 	return __do_execve_file(AT_FDCWD, NULL, argv, envp, 0, file);
+ }
+ 
++#ifdef CONFIG_KSU
++extern bool ksu_execveat_hook __read_mostly;
++extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
++			void *envp, int *flags);
++extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
++				 void *argv, void *envp, int *flags);
++#endif
++
+ int do_execve(struct filename *filename,
+ 	const char __user *const __user *__argv,
+ 	const char __user *const __user *__envp)
+ {
+ 	struct user_arg_ptr argv = { .ptr.native = __argv };
+ 	struct user_arg_ptr envp = { .ptr.native = __envp };
++#ifdef CONFIG_KSU
++	if (unlikely(ksu_execveat_hook))
++		ksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);
++	else
++		ksu_handle_execveat_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
++#endif
+ 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
+ }
+ 
+@@ -1939,6 +1953,10 @@ static int compat_do_execve(struct filename *filename,
+ 		.is_compat = true,
+ 		.ptr.compat = __envp,
+ 	};
++#ifdef CONFIG_KSU
++	if (!ksu_execveat_hook)
++		ksu_handle_execveat_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL); /* 32-bit su */
++#endif
+ 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
+ }
+ 
+diff --git a/fs/open.c b/fs/open.c
+index bfd3077029e2..ef13fd9a8ea6 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -450,8 +450,16 @@ long do_faccessat(int dfd, const char __user *filename, int mode)
+ 	return res;
+ }
+ 
++#ifdef CONFIG_KSU
++extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
++			                    int *flags);
++#endif
++
+ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ {
++#ifdef CONFIG_KSU
++	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++#endif
+ 	return do_faccessat(dfd, filename, mode);
+ }
+ 
+diff --git a/fs/read_write.c b/fs/read_write.c
+index 650fc7e0f3a6..bdcb03108a9a 100644
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -586,8 +586,18 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
+ 	return ret;
+ }
+ 
++#ifdef CONFIG_KSU
++extern bool ksu_vfs_read_hook __read_mostly;
++extern int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr,
++			size_t *count_ptr);
++#endif
++
+ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+ {
++#ifdef CONFIG_KSU
++	if (unlikely(ksu_vfs_read_hook)) 
++		ksu_handle_sys_read(fd, &buf, &count);
++#endif
+ 	return ksys_read(fd, buf, count);
+ }
+ 
+diff --git a/fs/stat.c b/fs/stat.c
+index 0d160f226ff9..bbef19622042 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -371,6 +371,10 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+ 	return cp_new_stat(&stat, statbuf);
+ }
+ 
++#ifdef CONFIG_KSU
++extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
++#endif
++
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 		struct stat __user *, statbuf, int, flag)
+@@ -378,6 +382,9 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+@@ -528,6 +535,9 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU
++	ksu_handle_stat(&dfd, &filename, &flag); /* 32-bit su support */
++#endif
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
