@@ -1,0 +1,36 @@
+diff --git a/kernel/apk_sign.c b/kernel/apk_sign.c
+index 354452c2..d6947085 100644
+--- a/kernel/apk_sign.c
++++ b/kernel/apk_sign.c
+@@ -31,6 +31,9 @@ static struct apk_sign_key {
+ 	{EXPECTED_SIZE, EXPECTED_HASH}, // Official
+ 	{EXPECTED_SIZE_RSUNTK, EXPECTED_HASH_RSUNTK}, // RKSU
+ 	{EXPECTED_SIZE_5EC1CFF, EXPECTED_HASH_5EC1CFF}, // MKSU
++	{EXPECTED_SIZE_RIFSXD, EXPECTED_HASH_RIFSXD}, // KernelSU-Next
++	{EXPECTED_SIZE_SHIRKNEKO, EXPECTED_HASH_SHIRKNEKO}, // SukiSU-Ultra
++	{EXPECTED_SIZE_BACKSLASHXX, EXPECTED_HASH_BACKSLASHXX}, // backslashxx/Ksu
+ };
+ 
+ static struct sdesc *init_sdesc(struct crypto_shash *alg)
+diff --git a/kernel/manager_sign.h b/kernel/manager_sign.h
+index 3075b4f1..78232a84 100644
+--- a/kernel/manager_sign.h
++++ b/kernel/manager_sign.h
+@@ -9,4 +9,16 @@
+ #define EXPECTED_SIZE_5EC1CFF   384
+ #define EXPECTED_HASH_5EC1CFF   "7e0c6d7278a3bb8e364e0fcba95afaf3666cf5ff3c245a3b63c8833bd0445cc4"
+ 
+-#endif /* MANAGER_SIGN_H */
++// rifsxd/KernelSU-Next
++#define EXPECTED_SIZE_RIFSXD    0x3e6
++#define EXPECTED_HASH_RIFSXD    "79e590113c4c4c0c222978e413a5faa801666957b1212a328e46c00c69821bf7"
++
++// ShirkNeko/SukiSU-Ultra
++#define EXPECTED_SIZE_SHIRKNEKO 0x35c
++#define EXPECTED_HASH_SHIRKNEKO "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef"
++
++// backslashxx/Ksu
++#define EXPECTED_SIZE_BACKSLASHXX    0x33b
++#define EXPECTED_HASH_BACKSLASHXX    "c371061b19d8c7d7d6133c6a9bafe198fa944e50c1b31c9d8daa8d7f1fc2d2d6"
++
++#endif /* __KSU_H_MANAGER_SIGN */
