@@ -1,0 +1,186 @@
+From ddec6124f932d1a9c47c74c7121c51df7795ea86 Mon Sep 17 00:00:00 2001
+From: Md Arif <111168803+sabamdarif@users.noreply.github.com>
+Date: Wed, 25 Jun 2025 23:09:13 +0530
+Subject: [PATCH] [BACKPORT] ptrace: Move setting/clearing ptrace_message into
+ ptrace_stop
+
+to pass SBI Yono zygisk detections.
+---
+ include/linux/ptrace.h      |  7 +++----
+ include/linux/tracehook.h   | 10 +++++-----
+ include/uapi/linux/ptrace.h |  3 +++
+ kernel/signal.c             | 19 +++++++++++--------
+ 4 files changed, 22 insertions(+), 17 deletions(-)
+
+diff --git a/include/linux/ptrace.h b/include/linux/ptrace.h
+index d41de55cdfb9..4850b14c2345 100644
+--- a/include/linux/ptrace.h
++++ b/include/linux/ptrace.h
+@@ -47,7 +47,7 @@ extern int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned
+ extern void ptrace_disable(struct task_struct *);
+ extern int ptrace_request(struct task_struct *child, long request,
+ 			  unsigned long addr, unsigned long data);
+-extern void ptrace_notify(int exit_code);
++extern void ptrace_notify(int exit_code, unsigned long message);
+ extern void __ptrace_link(struct task_struct *child,
+ 			  struct task_struct *new_parent,
+ 			  const struct cred *ptracer_cred);
+@@ -142,9 +142,8 @@ static inline bool ptrace_event_enabled(struct task_struct *task, int event)
+ static inline void ptrace_event(int event, unsigned long message)
+ {
+ 	if (unlikely(ptrace_event_enabled(current, event))) {
+-		current->ptrace_message = message;
+-		ptrace_notify((event << 8) | SIGTRAP);
+-	} else if (event == PTRACE_EVENT_EXEC) {
++        ptrace_notify((event << 8) | SIGTRAP, message);
++    } else if (event == PTRACE_EVENT_EXEC) {
+ 		/* legacy EXEC report via SIGTRAP */
+ 		if ((current->ptrace & (PT_PTRACED|PT_SEIZED)) == PT_PTRACED)
+ 			send_sig(SIGTRAP, current, 0);
+diff --git a/include/linux/tracehook.h b/include/linux/tracehook.h
+index 05589a3e37f4..bafc94ed33fd 100644
+--- a/include/linux/tracehook.h
++++ b/include/linux/tracehook.h
+@@ -57,14 +57,14 @@ struct linux_binprm;
+ /*
+  * ptrace report for syscall entry and exit looks identical.
+  */
+-static inline int ptrace_report_syscall(struct pt_regs *regs)
++static inline int ptrace_report_syscall(struct pt_regs *regs, unsigned long message)
+ {
+ 	int ptrace = current->ptrace;
+ 
+ 	if (!(ptrace & PT_PTRACED))
+ 		return 0;
+ 
+-	ptrace_notify(SIGTRAP | ((ptrace & PT_TRACESYSGOOD) ? 0x80 : 0));
++	ptrace_notify(SIGTRAP | ((ptrace & PT_TRACESYSGOOD) ? 0x80 : 0), message);
+ 
+ 	/*
+ 	 * this isn't the same as continuing with a signal, but it will do
+@@ -101,7 +101,7 @@ static inline int ptrace_report_syscall(struct pt_regs *regs)
+ static inline __must_check int tracehook_report_syscall_entry(
+ 	struct pt_regs *regs)
+ {
+-	return ptrace_report_syscall(regs);
++    return ptrace_report_syscall(regs, PTRACE_EVENTMSG_SYSCALL_ENTRY);
+ }
+ 
+ /**
+@@ -131,7 +131,7 @@ static inline void tracehook_report_syscall_exit(struct pt_regs *regs, int step)
+ 		return;
+ 	}
+ 
+-	ptrace_report_syscall(regs);
++    ptrace_report_syscall(regs, PTRACE_EVENTMSG_SYSCALL_EXIT);
+ }
+ 
+ /**
+@@ -148,7 +148,7 @@ static inline void tracehook_report_syscall_exit(struct pt_regs *regs, int step)
+ static inline void tracehook_signal_handler(int stepping)
+ {
+ 	if (stepping)
+-		ptrace_notify(SIGTRAP);
++		ptrace_notify(SIGTRAP, 0);
+ }
+ 
+ /**
+diff --git a/include/uapi/linux/ptrace.h b/include/uapi/linux/ptrace.h
+index d5a1b8a492b9..0d5b311a9d04 100644
+--- a/include/uapi/linux/ptrace.h
++++ b/include/uapi/linux/ptrace.h
+@@ -73,6 +73,9 @@ struct seccomp_metadata {
+ 	__u64 flags;		/* Output: filter's flags */
+ };
+ 
++#define PTRACE_EVENTMSG_SYSCALL_ENTRY	1
++#define PTRACE_EVENTMSG_SYSCALL_EXIT	2
++
+ /* Read signals from a shared (process wide) queue */
+ #define PTRACE_PEEKSIGINFO_SHARED	(1 << 0)
+ 
+diff --git a/kernel/signal.c b/kernel/signal.c
+index 218b4c5ce612..9a3134c3ea43 100644
+--- a/kernel/signal.c
++++ b/kernel/signal.c
+@@ -2036,7 +2036,8 @@ static inline bool may_ptrace_stop(void)
+  * If we actually decide not to stop at all because the tracer
+  * is gone, we keep current->exit_code unless clear_code.
+  */
+-static void ptrace_stop(int exit_code, int why, int clear_code, siginfo_t *info)
++static void ptrace_stop(int exit_code, int why, int clear_code,
++    unsigned long message, siginfo_t *info)
+ 	__releases(&current->sighand->siglock)
+ 	__acquires(&current->sighand->siglock)
+ {
+@@ -2082,6 +2083,7 @@ static void ptrace_stop(int exit_code, int why, int clear_code, siginfo_t *info)
+ 	 */
+ 	smp_wmb();
+ 
++    current->ptrace_message = message;
+ 	current->last_siginfo = info;
+ 	current->exit_code = exit_code;
+ 
+@@ -2160,6 +2162,7 @@ static void ptrace_stop(int exit_code, int why, int clear_code, siginfo_t *info)
+ 	 */
+ 	spin_lock_irq(&current->sighand->siglock);
+ 	current->last_siginfo = NULL;
++    current->ptrace_message = 0;
+ 
+ 	/* LISTENING can be set only during STOP traps, clear it */
+ 	current->jobctl &= ~JOBCTL_LISTENING;
+@@ -2172,7 +2175,7 @@ static void ptrace_stop(int exit_code, int why, int clear_code, siginfo_t *info)
+ 	recalc_sigpending_tsk(current);
+ }
+ 
+-static void ptrace_do_notify(int signr, int exit_code, int why)
++static void ptrace_do_notify(int signr, int exit_code, int why, unsigned long message)
+ {
+ 	siginfo_t info;
+ 
+@@ -2183,17 +2186,17 @@ static void ptrace_do_notify(int signr, int exit_code, int why)
+ 	info.si_uid = from_kuid_munged(current_user_ns(), current_uid());
+ 
+ 	/* Let the debugger run.  */
+-	ptrace_stop(exit_code, why, 1, &info);
++	ptrace_stop(exit_code, why, 1, message, &info);
+ }
+ 
+-void ptrace_notify(int exit_code)
++void ptrace_notify(int exit_code, unsigned long message)
+ {
+ 	BUG_ON((exit_code & (0x7f | ~0xffff)) != SIGTRAP);
+ 	if (unlikely(current->task_works))
+ 		task_work_run();
+ 
+ 	spin_lock_irq(&current->sighand->siglock);
+-	ptrace_do_notify(SIGTRAP, exit_code, CLD_TRAPPED);
++	ptrace_do_notify(SIGTRAP, exit_code, CLD_TRAPPED, message);
+ 	spin_unlock_irq(&current->sighand->siglock);
+ }
+ 
+@@ -2348,10 +2351,10 @@ static void do_jobctl_trap(void)
+ 			signr = SIGTRAP;
+ 		WARN_ON_ONCE(!signr);
+ 		ptrace_do_notify(signr, signr | (PTRACE_EVENT_STOP << 8),
+-				 CLD_STOPPED);
++				 CLD_STOPPED, 0);
+ 	} else {
+ 		WARN_ON_ONCE(!signr);
+-		ptrace_stop(signr, CLD_STOPPED, 0, NULL);
++		ptrace_stop(signr, CLD_STOPPED, 0, 0, NULL);
+ 		current->exit_code = 0;
+ 	}
+ }
+@@ -2405,7 +2408,7 @@ static int ptrace_signal(int signr, siginfo_t *info)
+ 	 * comment in dequeue_signal().
+ 	 */
+ 	current->jobctl |= JOBCTL_STOP_DEQUEUED;
+-	ptrace_stop(signr, CLD_TRAPPED, 0, info);
++	ptrace_stop(signr, CLD_TRAPPED, 0, 0, info);
+ 
+ 	/* We're back.  Did the debugger cancel the sig?  */
+ 	signr = current->exit_code;
+-- 
+2.49.0
+
