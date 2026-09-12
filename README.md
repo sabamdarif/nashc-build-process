@@ -68,20 +68,20 @@ repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 - Simplify `repo sync` to update all repositories
 - Keep your local customizations organized
 
-**How it Works:**
+**How It Works:**
 
 The `repo` tool reads manifests (`.xml` files) to determine which repositories to download. This local manifest acts as an extension, allowing you to specify additional repositories without modifying the default manifest.
 
 **Getting Started:**
 
-1. Clone this repository into your local project directory (e.g., `.repo/manifests`)
-2. Add entries for your custom repositories using the standard manifest format
-3. Run `repo sync` to download and update all repositories, including your custom ones
+1. Clone this repository into your local project directory (for example, `.repo/manifests`).
+2. Add entries for your custom repositories using the standard manifest format.
+3. Run `repo sync` to download and update all repositories, including your custom ones.
 
 **Note:**
 
-- Ensure proper indentation and formatting for valid manifest files
-- Refer to the `repo` documentation for detailed information on manifest syntax
+- Ensure proper indentation and formatting so that the manifest files are valid.
+- Refer to the `repo` documentation for detailed information about manifest syntax.
 
 ### Example:
 
@@ -113,7 +113,7 @@ rm -rf packages/apps/ViPER4AndroidFX
 repo init -u https://github.com/RisingOS-staging/android -b fifteen --git-lfs --depth=1
 ```
 
-#### 3. Clone local_manifests Repository
+#### 3. Clone the `local_manifests` Repository
 
 ```bash
 git clone https://github.com/DevInfinix/android-aosp-local-manifests --depth 1 -b 15-rising .repo/local_manifests
@@ -348,7 +348,7 @@ export USE_CCACHE=1
 ccache -M 50G
 ```
 
-> This will set ccache for building ROMs. "50G" is to mention the amount of ccache you are allocating to build the ROM. 30 to 50 GB should be enough for building ROM for one device.
+> This enables ccache for building ROMs. "50G" specifies the amount of cache allocated to the build. Between 30 and 50 GB should be enough to build a ROM for one device.
 
 ```bash
 export CONFIG_STATE_NOTIFIER=y
@@ -444,7 +444,7 @@ wget https://raw.githubusercontent.com/sabamdarif/nashc-build-process/refs/heads
 patch -p1 < ksu-manual-hooks.patch
 ```
 
-#### Few More Optional Patches
+#### A Few More Optional Patches
 
 **To fix YonoSBI zygisk detection:**
 
@@ -452,13 +452,13 @@ patch -p1 < ksu-manual-hooks.patch
 wget https://raw.githubusercontent.com/sabamdarif/nashc-build-process/refs/heads/main/patchs/4.19/BACKPORT-ptrace-Move-setting-clearing-ptrace_message.patch
 ```
 
-**If pm command doesn't work, apply this patch:**
+**If the `pm` command does not work, apply this patch:**
 
 ```bash
 wget https://github.com/sabamdarif/nashc-build-process/blob/main/patchs/common/fix_pm_command.patch
 ```
 
-**Setup KernelSU:**
+**Set Up KernelSU:**
 
 ```bash
 curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
@@ -466,9 +466,9 @@ curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.s
 
 ### 4. Add Configuration to defconfig
 
-- Keep in mind that on some devices, your defconfig may be in `arch/arm64/configs/your_defconfig` or in other cases `arch/arm64/configs/vendor/your_defconfig`
-- In our case it's inside `arch/arm64/configs/nashc_defconfig`
-- Add these properties:
+- Keep in mind that on some devices, your defconfig may be in `arch/arm64/configs/your_defconfig`. In other cases, it may be in `arch/arm64/configs/vendor/your_defconfig`.
+- In this case, it is located at `arch/arm64/configs/nashc_defconfig`.
+- Add the following properties:
 
 ```bash
 # KernelSU
@@ -496,7 +496,7 @@ make -j$(nproc --all) LLVM=1 LLVM_IAS=1 \
      STRIP=llvm-strip O=out
 ```
 
-> This might depend on the clang you use. Also run it inside the main kernel folder, like here it is `android_kernel_realme_nashc`.
+> This may depend on the version of Clang you use. Run it from the main kernel folder, which in this example is `android_kernel_realme_nashc`.
 
 ### 7. Clone AnyKernel and Zip It
 
@@ -506,10 +506,10 @@ cd AnyKernel3
 nano anykernel.sh
 ```
 
-In the `properties() {` line, add:
+In the `properties() {` block, add:
 
 ```bash
-kernel.string=Astera v4.14.336 lolz-KSU-Next by sabamdarif<https://github.com/sabamdarif> for Redmi Note 8 Pro (begonia) | KernelSU Version: 12017
+kernel.string=Astera v4.14.336 lolz-KSU-Next by sabamdarif <https://github.com/sabamdarif> for Redmi Note 8 Pro (begonia) | KernelSU Version: 12017
 ```
 
 ```bash
@@ -529,7 +529,7 @@ cd $HOME
 
 **1. Download Boot Editor**
 
-> Actual source: https://github.com/cfig/Android_boot_image_editor
+> Original source: https://github.com/cfig/Android_boot_image_editor
 
 ```bash
 wget https://github.com/sabamdarif/nashc-build-process/raw/refs/heads/main/patchs/others/boot_editor_v15_r1.zip
@@ -543,12 +543,12 @@ unzip boot_editor_v15_r1.zip
 
 **3. Extract Your Current boot.img**
 
-Extract your current boot.img and put it inside the `boot_editor_v15_r1` folder.
+Extract your current `boot.img` and place it inside the `boot_editor_v15_r1` folder.
 
 **4. Unpack the Boot Image**
 
 ```bash
-./gradlew unpak
+./gradlew unpack
 ```
 
 **5. Copy Kernel**
@@ -559,7 +559,7 @@ Go to the `android_kernel_realme_nashc` kernel source directory:
 cd out/arch/arm64/boot
 ```
 
-Copy the `Image.gz-dtb` to `boot_editor_v15_r1/build` folder and rename it to `kernel`.
+Copy `Image.gz-dtb` to the `boot_editor_v15_r1/build` folder and rename it to `kernel`.
 
 **6. Pack the Boot Image**
 
