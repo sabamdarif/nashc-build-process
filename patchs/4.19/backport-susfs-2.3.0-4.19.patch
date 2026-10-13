@@ -1,16 +1,15 @@
 diff --git a/arch/arm64/configs/nashc_defconfig b/arch/arm64/configs/nashc_defconfig
-index 560ea3de5e55..abb87124ca3c 100644
+index 0d218fc0372f..2d06888aff0f 100644
 --- a/arch/arm64/configs/nashc_defconfig
 +++ b/arch/arm64/configs/nashc_defconfig
-@@ -481,5 +481,8 @@ CONFIG_MTK_CAMERA_ISP_OWE_SUPPORT=y
+@@ -479,6 +479,7 @@ CONFIG_MTK_CAMERA_ISP_OWE_SUPPORT=y
+ 
+ # KernelSU
  CONFIG_KSU=y
++CONFIG_KSU_SUSFS=y
  CONFIG_KSU_MANUAL_HOOK=y
  
-+#SUSFS
-+CONFIG_KSU_SUSFS=y
-+
  CONFIG_INTEGRATED_MODULES=y
- CONFIG_NOMOUNT=y
 diff --git a/fs/Makefile b/fs/Makefile
 index eb8b99924134..ef50929e77b3 100644
 --- a/fs/Makefile
@@ -994,18 +993,23 @@ index 0fb69e305225..33ae7cf83b74 100644
  				continue;
  
 diff --git a/fs/proc/cmdline.c b/fs/proc/cmdline.c
-index fa762c5fbcb2..5c42eb61f426 100644
+index 9bf4f31f1dde..0e39b4172913 100644
 --- a/fs/proc/cmdline.c
 +++ b/fs/proc/cmdline.c
-@@ -4,8 +4,20 @@
- #include <linux/proc_fs.h>
+@@ -5,6 +5,11 @@
  #include <linux/seq_file.h>
+ #include <asm/setup.h>
  
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
 +extern struct static_key_false susfs_is_fake_cmdline_or_bootconfig_buffer_set;
 +extern void susfs_spoof_cmdline_or_bootconfig(struct seq_file *m);
 +#endif
 +
+ static char new_command_line[COMMAND_LINE_SIZE];
+ 
+ static void patch_flag(char *cmd, const char *flag, const char *val)
+@@ -33,6 +38,13 @@ static void patch_safetynet_flags(char *cmd)
+ 
  static int cmdline_proc_show(struct seq_file *m, void *v)
  {
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
@@ -1015,7 +1019,7 @@ index fa762c5fbcb2..5c42eb61f426 100644
 +		return 0;
 +	}
 +#endif
- 	seq_puts(m, saved_command_line);
+ 	seq_puts(m, new_command_line);
  	seq_putc(m, '\n');
  	return 0;
 diff --git a/fs/proc/fd.c b/fs/proc/fd.c
@@ -1116,7 +1120,7 @@ index 81882a13212d..b1ab0ea077dd 100644
  	if (seq_has_overflowed(m))
  		goto out;
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index 84fb76ab5ebb..d18cdb6d37d4 100644
+index 84fb76ab5ebb..4c7be91006cf 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
 @@ -20,6 +20,9 @@
@@ -1195,25 +1199,19 @@ index 84fb76ab5ebb..d18cdb6d37d4 100644
  	memset(&mss, 0, sizeof(mss));
  
  	smap_gather_stats(vma, &mss);
-@@ -900,7 +945,17 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
+@@ -900,7 +945,10 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
  	hold_task_mempolicy(priv);
  
  	for (vma = priv->mm->mmap; vma;) {
-+
+-		smap_gather_stats(vma, &mss);
 +#ifdef CONFIG_KSU_SUSFS_SUS_MAP
-+	if (vma->vm_file) {
-+		if (vma->vm_file && SUSFS_IS_INODE_SUS_MAP(file_inode(vma->vm_file)))
-+			goto bypass_orig_flow;
-+	}
++		if (!(vma->vm_file && SUSFS_IS_INODE_SUS_MAP(file_inode(vma->vm_file))))
 +#endif
- 		smap_gather_stats(vma, &mss);
-+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
-+bypass_orig_flow:
-+#endif
++			smap_gather_stats(vma, &mss);
  		last_vma_end = vma->vm_end;
  
  		/*
-@@ -1608,6 +1663,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1608,6 +1656,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  	unsigned long start_vaddr;
  	unsigned long end_vaddr;
  	int ret = 0, copied = 0;
@@ -1223,7 +1221,7 @@ index 84fb76ab5ebb..d18cdb6d37d4 100644
  
  	if (!mm || !mmget_not_zero(mm))
  		goto out;
-@@ -1666,7 +1724,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1666,7 +1717,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  		ret = down_read_killable(&mm->mmap_sem);
  		if (ret)
  			goto out_free;
@@ -4181,21 +4179,20 @@ index b8ec1dbd1be5..3a83a54af5e8 100644
  }
  
 diff --git a/kernel/sys.c b/kernel/sys.c
-index dea084e7248a..7df186195d06 100644
+index 483252912cc3..666656d41adf 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
-@@ -1250,6 +1250,10 @@ static int override_release(char __user *release, size_t len)
- 	}
- 	return ret;
+@@ -1279,12 +1279,20 @@ static __always_inline bool should_spoof_uname(const char *comm)
  }
+ #endif
+ 
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +extern struct static_key_false susfs_is_uname_spoof_buffer_set;
 +extern void susfs_spoof_uname(struct new_utsname* tmp);
 +#endif
- 
  SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
  {
-@@ -1257,6 +1261,10 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
+ 	struct new_utsname tmp;
  
  	down_read(&uts_sem);
  	memcpy(&tmp, utsname(), sizeof(tmp));
@@ -4203,9 +4200,9 @@ index dea084e7248a..7df186195d06 100644
 +	if (static_branch_likely(&susfs_is_uname_spoof_buffer_set))
 +		susfs_spoof_uname(&tmp);
 +#endif
- 	if (!strncmp(current->comm, "bpfloader", 9) ||
- 	    !strncmp(current->comm, "netbpfload", 10) ||
- 	    !strncmp(current->comm, "netd", 4)) {
+ #ifndef CONFIG_FAKE_UNAME_NONE
+ 	if (unlikely(should_spoof_uname(current->comm))) {
+ 		strscpy(tmp.release, FAKE_UNAME, sizeof(tmp.release));
 diff --git a/mm/memory.c b/mm/memory.c
 index fc33fb3b05a0..b615a1f8cf3d 100644
 --- a/mm/memory.c

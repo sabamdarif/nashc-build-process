@@ -1,0 +1,115 @@
+uname: add configurable fake kernel version spoof for BPF
+
+Add a Kconfig choice (FAKE_UNAME_{NONE,5_4,5_10,5_15,6_1,6_6,6_12}) and
+spoof the release string returned by newuname() for bpfloader/netbpfload/
+netd/uprobestats, so Android's BPF loader accepts the kernel as newer.
+
+Spoofing is gated to root (current_uid()==0) since a mismatched uname is
+itself a root-detection vector, and the hot path is optimized with branch
+hints and strscpy.
+
+Combines:
+- fe27ba69b357 uname: Add support for fake uname (Thomas Turner)
+- 6e12a1d49f56 uname: only spoof for root (rsuntk)
+- 434091b159c5 uname: optimize bpf spoofing (ris)
+
+diff --git a/init/Kconfig b/init/Kconfig
+index 0f72b29f5b89..a59b679b82b1 100644
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -33,6 +33,37 @@ config LLD_VERSION
+ config CC_HAS_ASM_GOTO
+ 	def_bool $(success,$(srctree)/scripts/gcc-goto.sh $(CC))
+ 
++choice
++	prompt "Fake uname kernel version"
++	default FAKE_UNAME_NONE
++	help
++	  Kernel side spoof for BPF.
++
++config FAKE_UNAME_NONE
++	bool "None"
++	help
++	  Don't spoof uname version.
++
++config FAKE_UNAME_5_4
++	bool "5.4"
++
++config FAKE_UNAME_5_10
++	bool "5.10"
++
++config FAKE_UNAME_5_15
++	bool "5.15"
++
++config FAKE_UNAME_6_1
++	bool "6.1"
++
++config FAKE_UNAME_6_6
++	bool "6.6"
++
++config FAKE_UNAME_6_12
++	bool "6.12"
++
++endchoice
++
+ config TOOLS_SUPPORT_RELR
+ 	def_bool $(success,env "CC=$(CC)" "LD=$(LD)" "NM=$(NM)" "OBJCOPY=$(OBJCOPY)" $(srctree)/scripts/tools-support-relr.sh)
+ 
+diff --git a/kernel/sys.c b/kernel/sys.c
+index dea084e7248a..483252912cc3 100644
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -1251,19 +1251,47 @@ static int override_release(char __user *release, size_t len)
+ 	return ret;
+ }
+ 
++#ifndef CONFIG_FAKE_UNAME_NONE
++
++#if defined(CONFIG_FAKE_UNAME_5_4)
++#define FAKE_UNAME "5.4.296"
++#elif defined(CONFIG_FAKE_UNAME_5_10)
++#define FAKE_UNAME "5.10.241"
++#elif defined(CONFIG_FAKE_UNAME_5_15)
++#define FAKE_UNAME "5.15.190"
++#elif defined(CONFIG_FAKE_UNAME_6_1)
++#define FAKE_UNAME "6.1.149"
++#elif defined(CONFIG_FAKE_UNAME_6_6)
++#define FAKE_UNAME "6.6.103"
++#elif defined(CONFIG_FAKE_UNAME_6_12)
++#define FAKE_UNAME "6.12.44"
++#endif
++
++static __always_inline bool should_spoof_uname(const char *comm)
++{
++	if (unlikely(current_uid().val != 0))
++		return false;
++
++	return (!strncmp(comm, "bpfloader", 9) ||
++		!strncmp(comm, "netbpfload", 10) ||
++		!strncmp(comm, "netd", 4) ||
++		!strncmp(comm, "uprobestats", 11));
++}
++#endif
++
+ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
+ {
+ 	struct new_utsname tmp;
+ 
+ 	down_read(&uts_sem);
+ 	memcpy(&tmp, utsname(), sizeof(tmp));
+-	if (!strncmp(current->comm, "bpfloader", 9) ||
+-	    !strncmp(current->comm, "netbpfload", 10) ||
+-	    !strncmp(current->comm, "netd", 4)) {
+-		strcpy(tmp.release, "5.4.186");
+-		pr_debug("fake uname: %s/%d release=%s\n",
+-			 current->comm, current->pid, tmp.release);
++#ifndef CONFIG_FAKE_UNAME_NONE
++	if (unlikely(should_spoof_uname(current->comm))) {
++		strscpy(tmp.release, FAKE_UNAME, sizeof(tmp.release));
++		pr_info("fake uname: %s (pid=%d) release=%s\n",
++			current->comm, current->pid, tmp.release);
+ 	}
++#endif
+ 	up_read(&uts_sem);
+ 	if (copy_to_user(name, &tmp, sizeof(tmp)))
+ 		return -EFAULT;

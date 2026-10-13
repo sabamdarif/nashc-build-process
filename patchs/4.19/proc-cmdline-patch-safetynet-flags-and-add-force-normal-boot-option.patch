@@ -1,0 +1,97 @@
+proc: cmdline: patch SafetyNet flags and add force_normal_boot option
+
+Userspace parses androidboot.* flags from /proc/cmdline and sets the
+ro.boot.* props accordingly, which trips SafetyNet when the values are
+incorrect. Patch the checked flags (flash.locked, verifiedbootstate,
+veritymode, vbmeta.device_state) so they report locked/green/enforcing.
+
+Also add CONFIG_PROC_CMDLINE_APPEND_ANDROID_FORCE_NORMAL_BOOT to append
+androidboot.force_normal_boot=1 when skip_initramfs is present (A/B ->
+SAR migration workaround).
+
+Combines:
+- 1a63f756a109 proc: cmdline: Patch SafetyNet flags (Sultan Alsawaf)
+- 19067e930931 fs: proc: append androidboot.force_normal_boot=1 (Yumi Yukimura)
+
+diff --git a/fs/proc/Kconfig b/fs/proc/Kconfig
+index cad2c60b8656..47867750e2b7 100644
+--- a/fs/proc/Kconfig
++++ b/fs/proc/Kconfig
+@@ -103,3 +103,14 @@ config PROC_UID
+ 	depends on PROC_FS && RT_MUTEXES
+ 	help
+ 	Provides aggregated per-uid information under /proc/uid.
++
++config PROC_CMDLINE_APPEND_ANDROID_FORCE_NORMAL_BOOT
++	bool "Append Android force normal boot parameter to /proc/cmdline"
++	default n
++	help
++	  If you say Y here, The parameter androidboot.force_normal_boot=1
++	  will be appended to /proc/cmdline when skip_initramfs parameter
++	  is found.
++
++	  This is a workaround, and it's generally required for Android P
++	  launched A/B devices to migrate to Android Q style System-as-root.
+diff --git a/fs/proc/cmdline.c b/fs/proc/cmdline.c
+index fa762c5fbcb2..9bf4f31f1dde 100644
+--- a/fs/proc/cmdline.c
++++ b/fs/proc/cmdline.c
+@@ -3,16 +3,57 @@
+ #include <linux/init.h>
+ #include <linux/proc_fs.h>
+ #include <linux/seq_file.h>
++#include <asm/setup.h>
++
++static char new_command_line[COMMAND_LINE_SIZE];
++
++static void patch_flag(char *cmd, const char *flag, const char *val)
++{
++	size_t flag_len, val_len;
++	char *start, *end;
++
++	start = strstr(cmd, flag);
++	if (!start)
++		return;
++
++	flag_len = strlen(flag);
++	val_len = strlen(val);
++	end = start + flag_len + strcspn(start + flag_len, " ");
++	memmove(start + flag_len + val_len, end, strlen(end) + 1);
++	memcpy(start + flag_len, val, val_len);
++}
++
++static void patch_safetynet_flags(char *cmd)
++{
++	patch_flag(cmd, "androidboot.flash.locked=", "1");
++	patch_flag(cmd, "androidboot.verifiedbootstate=", "green");
++	patch_flag(cmd, "androidboot.veritymode=", "enforcing");
++	patch_flag(cmd, "androidboot.vbmeta.device_state=", "locked");
++}
+ 
+ static int cmdline_proc_show(struct seq_file *m, void *v)
+ {
+-	seq_puts(m, saved_command_line);
++	seq_puts(m, new_command_line);
+ 	seq_putc(m, '\n');
+ 	return 0;
+ }
+ 
+ static int __init proc_cmdline_init(void)
+ {
++	strcpy(new_command_line, saved_command_line);
++
++	/*
++	 * Patch various flags from command line seen by userspace in order to
++	 * pass SafetyNet checks.
++	 */
++	patch_safetynet_flags(new_command_line);
++
++#ifdef CONFIG_PROC_CMDLINE_APPEND_ANDROID_FORCE_NORMAL_BOOT
++	if (strstr(saved_command_line, "skip_initramfs"))
++		snprintf(new_command_line, COMMAND_LINE_SIZE,
++			 "%s androidboot.force_normal_boot=1", new_command_line);
++#endif
++
+ 	proc_create_single("cmdline", 0, NULL, cmdline_proc_show);
+ 	return 0;
+ }

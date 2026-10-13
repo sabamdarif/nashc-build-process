@@ -1,0 +1,98 @@
+fs/open: hide /system/addon.d from userspace app detections
+
+Make do_sys_open() and do_faccessat() return -ENOENT for /system/addon.d
+(and anything under it) when the caller is an app uid (>=10000), hiding
+GApps/custom-ROM addon.d survival scripts from root/ROM detectors.
+
+The do_faccessat path takes a getname() reference which is released on
+every exit path (mode/cred failures and the hide path) to avoid leaking
+the struct filename.
+
+Combines:
+- 02a9b4ee3525 fs/open: hide system addon.d from userspace apps (kvsnr113)
+- fc5d00c670a9 fs/open: fix addon.d hide memory leak in do_faccessat (rmuxnet)
+
+
+diff --git a/fs/open.c b/fs/open.c
+index 155731594c8e..c3898309fad2 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -343,6 +343,27 @@ int ksys_fallocate(int fd, int mode, loff_t offset, loff_t len)
+ 	return error;
+ }
+ 
++static inline bool is_app_uid(void)
++{
++	return current_fsuid().val >= 10000;
++}
++
++static inline bool should_hide_addond(const char *p)
++{
++	if (!p)
++		return false;
++
++	if (!strcmp(p, "/system/addon.d"))
++		return true;
++
++	if (!strncmp(p,
++		     "/system/addon.d/",
++		     strlen("/system/addon.d/")))
++		return true;
++
++	return false;
++}
++
+ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
+ {
+ 	return ksys_fallocate(fd, mode, offset, len);
+@@ -362,13 +383,19 @@ long do_faccessat(int dfd, const char __user *filename, int mode)
+ 	struct vfsmount *mnt;
+ 	int res;
+ 	unsigned int lookup_flags = LOOKUP_FOLLOW;
++	struct filename *kname;
++	kname = getname(filename);
+ 
+-	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
++	if (mode & ~S_IRWXO) {	/* where's F_OK, X_OK, W_OK, R_OK? */
++		putname(kname);
+ 		return -EINVAL;
++	}
+ 
+ 	override_cred = prepare_creds();
+-	if (!override_cred)
++	if (!override_cred) {
++		putname(kname);
+ 		return -ENOMEM;
++	}
+ 
+ 	override_cred->fsuid = override_cred->uid;
+ 	override_cred->fsgid = override_cred->gid;
+@@ -403,6 +430,15 @@ long do_faccessat(int dfd, const char __user *filename, int mode)
+ 	override_cred->non_rcu = 1;
+ 
+ 	old_cred = override_creds(override_cred);
++
++	if (!IS_ERR(kname)) {
++		if (unlikely(is_app_uid()) && should_hide_addond(kname->name)) {
++			putname(kname);
++			res = -ENOENT;
++			goto out;
++		}
++		putname(kname);
++	}
+ retry:
+ 	res = user_path_at(dfd, filename, lookup_flags, &path);
+ 	if (res)
+@@ -1102,6 +1138,12 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
+ 	if (IS_ERR(tmp))
+ 		return PTR_ERR(tmp);
+ 
++	if (unlikely(is_app_uid() &&
++		     should_hide_addond(tmp->name))) {
++		putname(tmp);
++		return -ENOENT;
++	}
++
+ 	fd = get_unused_fd_flags(flags);
+ 	if (fd >= 0) {
+ 		struct file *f = do_filp_open(dfd, tmp, &op);
